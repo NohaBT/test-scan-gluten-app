@@ -5,4 +5,5 @@ numpy
 opencv-python-headless
 requests
 pyzbar
+zxing-cpp
 
