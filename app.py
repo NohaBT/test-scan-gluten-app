@@ -374,10 +374,21 @@ def get_product_from_openfoodfacts(barcode):
     return {
         "name": product.get("product_name") or t["unknown_product"],
         "brand": product.get("brands") or t["unknown_brand"],
-        "ingredients": product.get("ingredients_text") or "",
+        "ingredients": product.get("ingredients_text") or product.get("ingredients_text_en") or "",
+        "labels": product.get("labels") or "",
+        "categories": product.get("categories") or "",
     }
 
+def get_product_analysis_text(product):
+    parts = [
+        product.get("ingredients", ""),
+        product.get("labels", ""),
+        product.get("categories", ""),
+        product.get("name", ""),
+        product.get("brand", ""),
+    ]
 
+    return " ".join(part for part in parts if part).strip()
 
 
 @st.cache_data(show_spinner=False)
@@ -491,6 +502,12 @@ if file:
                     """
                 )
                 extracted_text = product["ingredients"]
+
+                if not extracted_text.strip():
+                    extracted_text = get_product_analysis_text(product)
+                    st.info(
+                        "Ingredients are missing in the database, so the app is using product name, labels, and category only. Please verify the package label."
+                    )
             else:
                 st.warning(t["not_found"])
                 st.stop()
