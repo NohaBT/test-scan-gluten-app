@@ -487,7 +487,7 @@ if file:
     found_gluten, safe_detected, ml_probability = analyze_gluten(extracted_text)
     ml_percent = round(ml_probability * 100)
     risk = risk_level(found_gluten, ml_probability, safe_detected)
-
+    final_risk = risk
     rule_detected = bool(found_gluten and not safe_detected)
     
     ml_detected = False
