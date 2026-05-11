@@ -12,6 +12,7 @@ from pyzbar.pyzbar import decode
 
 
 st.set_page_config(page_title="Gluten Scanner", page_icon="🔎")
+st.warning("MVP note: OCR works best with clear English ingredient labels. Always verify the product label.")
 
 TEXT = {
     "English": {
@@ -448,8 +449,7 @@ if file:
             st.stop()
 
     elif scan_mode == t["ingredients"]:
-            st.warning("Ingredients OCR temporarily disabled in MVP version.")
-            st.stop()
+        extracted_text = read_ingredients_from_image(image)
 
     with st.expander(t["show_text"]):
         st.write(extracted_text or t["no_text"])
