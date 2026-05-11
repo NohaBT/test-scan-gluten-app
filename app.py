@@ -502,17 +502,36 @@ if file:
 
     col1, col2 = st.columns(2)
     col1.metric(t["probability"], f"{ml_percent}%")
-    col2.metric(t["risk"], risk)
+    final_risk = risk
+
+    if safe_detected:
+        final_risk = t["low"]
+    
+    col2.metric(t["risk"], final_risk)
 
     st.progress(min(max(ml_probability, 0), 1))
 
     with st.expander(t["why"], expanded=True):
-        if rule_detected:
-            st.write(t["rule_reason"])
+    
+        if safe_detected:
+            st.success(
+                "Safe phrases like 'gluten free' or 'no gluten' were detected."
+            )
+    
+        elif found_gluten:
+            st.error(
+                f"Detected gluten-related ingredients: {', '.join(found_gluten)}"
+            )
+    
         elif ml_detected:
-            st.write(t["ml_reason"])
+            st.warning(
+                "The AI model detected patterns similar to gluten-containing products."
+            )
+    
         else:
-            st.write(t["safe_reason"] if safe_detected else t["free"])
+            st.info(
+                "No strong gluten indicators were detected."
+            )
 
     if found_gluten:
         st.write(t["detected"])
