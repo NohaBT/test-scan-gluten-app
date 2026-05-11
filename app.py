@@ -419,13 +419,12 @@ def analyze_gluten(text):
 
 
 def risk_level(found_gluten, ml_probability, safe_detected):
-    if safe_detected and not found_gluten:
+    if safe_detected:
         return t["low"]
 
-    if len(found_gluten) >= 3 or ml_probability >= 0.85:
-        return t["high"]
-
-    if len(found_gluten) == 2 or ml_probability >= 0.65:
+    if found_gluten:
+        if len(found_gluten) >= 2:
+            return t["high"]
         return t["medium"]
 
     return t["low"]
@@ -491,12 +490,8 @@ if file:
 
     rule_detected = bool(found_gluten and not safe_detected)
     
-    ml_detected = (
-        ml_probability >= 0.90
-        and not safe_detected
-        and not found_gluten
-    )
-
+    ml_detected = False
+    
     if rule_detected:
         result_label = t["contains"]
     
@@ -520,10 +515,12 @@ if file:
 
     st.subheader(t["result"])
 
-    if rule_detected:
+    if final_risk == t["high"]:
         st.error(result_label)
-    elif ml_detected:
+        
+    elif final_risk == t["medium"]:
         st.warning(result_label)
+        
     else:
         st.success(result_label)
 
