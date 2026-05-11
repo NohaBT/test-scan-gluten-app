@@ -396,22 +396,24 @@ def read_ingredients_from_image(image_bytes):
 
 
 def is_safe_context(text, term):
-    term = re.escape(normalize_text(term))
+    term = normalize_text(term)
     text = normalize_text(text)
+    soft_text = re.sub(r"[^a-z0-9\u0600-\u06FF']+", " ", text)
+    soft_text = re.sub(r"\s+", " ", soft_text).strip()
+    term_pattern = re.escape(term).replace(r"\ ", r"\s+")
 
     safe_patterns = [
-        rf"\bno\b[\w\s,;:/()-]{{0,90}}\b{term}\b",
-        rf"\bwithout\b[\w\s,;:/()-]{{0,90}}\b{term}\b",
-        rf"\bfree\s+(?:from|of)\b[\w\s,;:/()-]{{0,90}}\b{term}\b",
-        rf"\b{term}\s+free\b",
-        rf"\b(?:does\s+not|do\s+not|doesn't|don't)\s+contain\b[\w\s,;:/()-]{{0,90}}\b{term}\b",
-        rf"\bcontains?\s+no\b[\w\s,;:/()-]{{0,90}}\b{term}\b",
-        rf"\bsans\b[\w\s,;:/()-]{{0,90}}\b{term}\b",
-        rf"\bne\s+contient\s+pas\b[\w\s,;:/()-]{{0,90}}\b{term}\b",
+        rf"\bno\b(?:\s+\w+){{0,12}}\s+\b{term_pattern}\b",
+        rf"\bwithout\b(?:\s+\w+){{0,12}}\s+\b{term_pattern}\b",
+        rf"\bfree\s+(?:from|of)\b(?:\s+\w+){{0,12}}\s+\b{term_pattern}\b",
+        rf"\b{term_pattern}\s+free\b",
+        rf"\b(?:does\s+not|do\s+not|doesn't|don't)\s+contain\b(?:\s+\w+){{0,12}}\s+\b{term_pattern}\b",
+        rf"\bcontains?\s+no\b(?:\s+\w+){{0,12}}\s+\b{term_pattern}\b",
+        rf"\bsans\b(?:\s+\w+){{0,12}}\s+\b{term_pattern}\b",
+        rf"\bne\s+contient\s+pas\b(?:\s+\w+){{0,12}}\s+\b{term_pattern}\b",
     ]
 
-    return any(re.search(pattern, text) for pattern in safe_patterns)
-
+    return any(re.search(pattern, soft_text) for pattern in safe_patterns)
 
 def analyze_gluten(text):
     normalized = normalize_text(text)
