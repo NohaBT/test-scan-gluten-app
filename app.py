@@ -524,9 +524,7 @@ if file:
     else:
         st.success(result_label)
 
-    col1, col2 = st.columns(2)
-    col1.metric("Detection method", "Rules + OCR/API")
-    col2.metric(t["risk"], final_risk)
+    st.metric(t["risk"], final_risk)
 
     if safe_detected:
         final_risk = t["low"]
