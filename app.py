@@ -1,3 +1,4 @@
+import io
 import math
 import re
 from collections import Counter
@@ -8,7 +9,16 @@ import numpy as np
 import requests
 import streamlit as st
 from PIL import Image, ImageOps
-from pyzbar.pyzbar import decode
+
+try:
+    from pyzbar.pyzbar import decode
+except ImportError:
+    decode = None
+
+try:
+    import zxingcpp
+except ImportError:
+    zxingcpp = None
 
 
 st.set_page_config(page_title="Gluten Scanner", page_icon="🔎")
@@ -316,20 +326,37 @@ def is_safe_context(text, term):
 def read_barcode(image):
     img = np.array(image.convert("RGB"))
     gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-    gray = cv2.resize(gray, None, fx=3, fy=3)
-    gray = cv2.GaussianBlur(gray, (3,3), 0)
-    barcodes = decode(gray)
+    variants = [
+        gray,
+        cv2.resize(gray, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC),
+        cv2.resize(gray, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC),
+    ]
 
-    if barcodes:
-        return barcodes[0].data.decode("utf-8")
+    blurred = cv2.GaussianBlur(variants[-1], (3, 3), 0)
+    variants.extend(
+        [
+            blurred,
+            cv2.equalizeHist(variants[-1]),
+            cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1],
+        ]
+    )
+
+    for candidate in variants:
+        if zxingcpp is not None:
+            results = zxingcpp.read_barcodes(candidate)
+            if results:
+                return results[0].text
+
+        if decode is not None:
+            barcodes = decode(candidate)
+            if barcodes:
+                return barcodes[0].data.decode("utf-8")
 
     return None
 
 
-@st.cache_data
 def get_product_from_openfoodfacts(barcode):
-
-    url = f"https://world.openfoodfacts.net/api/v2/product/{barcode}.json"
+    url = f"https://world.openfoodfacts.org/api/v2/product/{barcode}.json"
 
     try:
         response = requests.get(url, timeout=10)
@@ -344,63 +371,28 @@ def get_product_from_openfoodfacts(barcode):
 
     product = data.get("product", {})
 
-    # DEBUG (temporary)
-    # st.write(product)
-
-    ingredients = (
-        product.get("ingredients_text")
-        or product.get("ingredients_text_en")
-        or product.get("ingredients_text_fr")
-        or product.get("ingredients_text_with_allergens")
-        or ""
-    )
-    
-    labels_text = " ".join([
-        str(product.get("labels", "")),
-        str(product.get("labels_tags", "")),
-        str(product.get("_keywords", "")),
-        str(product.get("traces", "")),
-        str(product.get("traces_tags", "")),
-    ])
-    
-    full_text = ingredients + " " + labels_text
-
     return {
         "name": product.get("product_name") or t["unknown_product"],
         "brand": product.get("brands") or t["unknown_brand"],
-        "ingredients": full_text,
+        "ingredients": product.get("ingredients_text") or "",
     }
 
-def read_ingredients_from_image(image):
-    rotations = [0, 90, 180, 270]
 
-    best_text = ""
 
-    for angle in rotations:
-        rotated = image.rotate(angle, expand=True)
 
-        img = np.array(rotated.convert("RGB"))
+@st.cache_data(show_spinner=False)
+def read_ingredients_from_image(image_bytes):
+    image = Image.open(io.BytesIO(image_bytes))
+    image = ImageOps.exif_transpose(image)
+    img = np.array(image.convert("RGB"))
+    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
 
-        gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    gray = cv2.resize(gray, None, fx=2, fy=2)
+    gray = cv2.GaussianBlur(gray, (3, 3), 0)
+    gray = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
 
-        gray = cv2.resize(gray, None, fx=3, fy=3)
-
-        gray = cv2.GaussianBlur(gray, (3,3), 0)
-
-        gray = cv2.threshold(
-            gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
-        )[1]
-
-        text = pytesseract.image_to_string(
-            gray,
-            lang="eng+fra",
-            config="--psm 6"
-        )
-
-        if len(text) > len(best_text):
-            best_text = text
-
-    return best_text
+    text = pytesseract.image_to_string(gray, lang="eng+fra")
+    return text
 
 
 def analyze_gluten(text):
@@ -440,12 +432,13 @@ def analyze_gluten(text):
 
 
 def risk_level(found_gluten, ml_probability, safe_detected):
-    if safe_detected:
+    if safe_detected and not found_gluten:
         return t["low"]
 
-    if found_gluten:
-        if len(found_gluten) >= 2:
-            return t["high"]
+    if len(found_gluten) >= 3 or ml_probability >= 0.85:
+        return t["high"]
+
+    if len(found_gluten) == 2 or ml_probability >= 0.65:
         return t["medium"]
 
     return t["low"]
@@ -462,14 +455,20 @@ if file:
 
     st.image(image, width=280)
 
+    should_analyze = st.button(t.get("analyze", "Analyze image"), type="primary")
+    if not should_analyze:
+        st.stop()
+
     if scan_mode == t["barcode"]:
-        barcode = read_barcode(image)
-        st.write("DEBUG BARCODE:", barcode)
+        with st.spinner("Reading barcode..."):
+            barcode = read_barcode(image)
 
         if barcode:
-            product = get_product_from_openfoodfacts(barcode)
+            with st.spinner("Searching product..."):
+                product = get_product_from_openfoodfacts(barcode)
 
             if product:
+                st.success(t["found_product"])
                 st.markdown(
                     f"""
                     ### 📦 {t['product_info']}
@@ -488,39 +487,28 @@ if file:
             st.stop()
 
     elif scan_mode == t["ingredients"]:
-        extracted_text = read_ingredients_from_image(image)
+        file.seek(0)
+        with st.spinner("Reading ingredients..."):
+            extracted_text = read_ingredients_from_image(file.getvalue())
 
     with st.expander(t["show_text"]):
         st.write(extracted_text or t["no_text"])
 
     if len(extracted_text.split()) < 4:
-        st.warning(
-            "⚠️ Ingredients data is missing from the product database."
-        )
-        
-        st.info(
-            "Try scanning the ingredients label directly using Ingredients Scan."
-        )
-        
+        st.warning(t["unclear"])
         st.stop()
 
     found_gluten, safe_detected, ml_probability = analyze_gluten(extracted_text)
     ml_percent = round(ml_probability * 100)
     risk = risk_level(found_gluten, ml_probability, safe_detected)
-    final_risk = risk
+
     rule_detected = bool(found_gluten and not safe_detected)
-    
-    ml_detected = False
-    
+    ml_detected = ml_probability >= 0.65 and not safe_detected
+
     if rule_detected:
         result_label = t["contains"]
-    
-    elif safe_detected:
-        result_label = t["free"]
-    
     elif ml_detected:
         result_label = t["possible"]
-    
     else:
         result_label = t["free"]
 
@@ -535,41 +523,26 @@ if file:
 
     st.subheader(t["result"])
 
-    if final_risk == t["high"]:
+    if rule_detected:
         st.error(result_label)
-        
-    elif final_risk == t["medium"]:
+    elif ml_detected:
         st.warning(result_label)
-        
     else:
         st.success(result_label)
 
-    st.metric(t["risk"], final_risk)
+    col1, col2 = st.columns(2)
+    col1.metric(t["probability"], f"{ml_percent}%")
+    col2.metric(t["risk"], risk)
 
-    if safe_detected:
-        final_risk = t["low"]
-    
+    st.progress(min(max(ml_probability, 0), 1))
+
     with st.expander(t["why"], expanded=True):
-    
-        if safe_detected:
-            st.success(
-                "Safe phrases like 'gluten free' or 'no gluten' were detected."
-            )
-    
-        elif found_gluten:
-            st.error(
-                f"Detected gluten-related ingredients: {', '.join(found_gluten)}"
-            )
-    
+        if rule_detected:
+            st.write(t["rule_reason"])
         elif ml_detected:
-            st.warning(
-                "The AI model detected patterns similar to gluten-containing products."
-            )
-    
+            st.write(t["ml_reason"])
         else:
-            st.info(
-                "No strong gluten indicators were detected."
-            )
+            st.write(t["safe_reason"] if safe_detected else t["free"])
 
     if found_gluten:
         st.write(t["detected"])
