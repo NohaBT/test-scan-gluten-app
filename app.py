@@ -328,7 +328,7 @@ def read_barcode(image):
 
 @st.cache_data
 def get_product_from_openfoodfacts(barcode):
-    url = f"https://world.openfoodfacts.org/api/v0/product/{barcode}.json"
+url = f"https://world.openfoodfacts.net/api/v2/product/{barcode}.json"
 
     try:
         response = requests.get(url, timeout=10)
