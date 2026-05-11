@@ -391,7 +391,7 @@ def read_ingredients_from_image(image):
 
         text = pytesseract.image_to_string(
             gray,
-            lang="eng+fra",
+            lang="eng+fra+ara",
             config="--psm 6"
         )
 
