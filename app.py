@@ -354,11 +354,21 @@ def get_product_from_openfoodfacts(barcode):
         or product.get("ingredients_text_with_allergens")
         or ""
     )
+    
+    labels_text = " ".join([
+        str(product.get("labels", "")),
+        str(product.get("labels_tags", "")),
+        str(product.get("_keywords", "")),
+        str(product.get("traces", "")),
+        str(product.get("traces_tags", "")),
+    ])
+    
+    full_text = ingredients + " " + labels_text
 
     return {
         "name": product.get("product_name") or t["unknown_product"],
         "brand": product.get("brands") or t["unknown_brand"],
-        "ingredients": ingredients,
+        "ingredients": full_text,
     }
 
 def read_ingredients_from_image(image):
