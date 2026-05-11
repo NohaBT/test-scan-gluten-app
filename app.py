@@ -345,7 +345,7 @@ def get_product_from_openfoodfacts(barcode):
     product = data.get("product", {})
 
     # DEBUG (temporary)
-    st.write(product)
+    # st.write(product)
 
     ingredients = (
         product.get("ingredients_text")
@@ -465,7 +465,14 @@ if file:
         st.write(extracted_text or t["no_text"])
 
     if len(extracted_text.split()) < 4:
-        st.warning(t["unclear"])
+        st.warning(
+            "⚠️ Ingredients data is missing from the product database."
+        )
+        
+        st.info(
+            "Try scanning the ingredients label directly using Ingredients Scan."
+        )
+        
         st.stop()
 
     found_gluten, safe_detected, ml_probability = analyze_gluten(extracted_text)
