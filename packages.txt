@@ -2,4 +2,4 @@ libzbar0
 tesseract-ocr
 tesseract-ocr-eng
 tesseract-ocr-fra
-tesseract-ocr-ar
+tesseract-ocr-ara
