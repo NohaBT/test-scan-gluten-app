@@ -383,7 +383,9 @@ def read_ingredients_from_image(image):
 
         gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
 
-        gray = cv2.resize(gray, None, fx=2, fy=2)
+        gray = cv2.resize(gray, None, fx=3, fy=3)
+
+        gray = cv2.GaussianBlur(gray, (3,3), 0)
 
         gray = cv2.threshold(
             gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
@@ -391,7 +393,7 @@ def read_ingredients_from_image(image):
 
         text = pytesseract.image_to_string(
             gray,
-            lang="eng+fra+ara",
+            lang="eng+fra",
             config="--psm 6"
         )
 
