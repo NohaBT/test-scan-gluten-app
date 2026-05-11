@@ -5,6 +5,4 @@ numpy
 opencv-python-headless
 requests
 pyzbar
-git add .
-git commit -m "fix barcode"
-git push
+
