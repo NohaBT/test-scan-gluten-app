@@ -326,8 +326,9 @@ def read_barcode(image):
     return None
 
 
+@st.cache_data
 def get_product_from_openfoodfacts(barcode):
-    url = f"https://world.openfoodfacts.org/api/v2/product/{barcode}.json"
+    url = f"https://world.openfoodfacts.org/api/v0/product/{barcode}.json"
 
     try:
         response = requests.get(url, timeout=10)
@@ -342,13 +343,18 @@ def get_product_from_openfoodfacts(barcode):
 
     product = data.get("product", {})
 
+    ingredients = (
+        product.get("ingredients_text_en")
+        or product.get("ingredients_text_fr")
+        or product.get("ingredients_text")
+        or ""
+    )
+
     return {
         "name": product.get("product_name") or t["unknown_product"],
         "brand": product.get("brands") or t["unknown_brand"],
-        "ingredients": product.get("ingredients_text") or "",
+        "ingredients": ingredients,
     }
-
-
 
 
 def read_ingredients_from_image(image):
