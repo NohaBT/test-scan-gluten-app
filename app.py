@@ -12,7 +12,6 @@ from pyzbar.pyzbar import decode
 
 
 st.set_page_config(page_title="Gluten Scanner", page_icon="🔎")
-st.warning("MVP note: OCR works best with clear English ingredient labels. Always verify the product label.")
 
 TEXT = {
     "English": {
