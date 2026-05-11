@@ -529,7 +529,7 @@ if file:
     if safe_detected:
         final_risk = t["low"]
     
-    col2.metric(t["risk"], final_risk)
+    st.metric(t["risk"], final_risk)
 
     with st.expander(t["why"], expanded=True):
     
