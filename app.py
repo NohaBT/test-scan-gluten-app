@@ -449,7 +449,6 @@ if file:
             product = get_product_from_openfoodfacts(barcode)
 
             if product:
-                st.success(t["found_product"])
                 st.markdown(
                     f"""
                     ### 📦 {t['product_info']}
@@ -529,8 +528,6 @@ if file:
     if safe_detected:
         final_risk = t["low"]
     
-    st.metric(t["risk"], final_risk)
-
     with st.expander(t["why"], expanded=True):
     
         if safe_detected:
