@@ -372,14 +372,33 @@ def get_product_from_openfoodfacts(barcode):
     }
 
 def read_ingredients_from_image(image):
-    img = np.array(image.convert("RGB"))
-    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    rotations = [0, 90, 180, 270]
 
-    gray = cv2.resize(gray, None, fx=2, fy=2)
-    gray = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)[1]
+    best_text = ""
 
-    text = pytesseract.image_to_string(gray, lang="eng+fra")
-    return text
+    for angle in rotations:
+        rotated = image.rotate(angle, expand=True)
+
+        img = np.array(rotated.convert("RGB"))
+
+        gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+
+        gray = cv2.resize(gray, None, fx=2, fy=2)
+
+        gray = cv2.threshold(
+            gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
+        )[1]
+
+        text = pytesseract.image_to_string(
+            gray,
+            lang="eng+fra",
+            config="--psm 6"
+        )
+
+        if len(text) > len(best_text):
+            best_text = text
+
+    return best_text
 
 
 def analyze_gluten(text):
