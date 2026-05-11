@@ -298,7 +298,7 @@ uploaded_picture = st.file_uploader(
 st.caption(t["tip"])
 
 
-def is_safe_context(text, term):
+def _legacy_is_safe_context(text, term):
     safe_nearby_words = [
         "no",
         "without",
@@ -395,6 +395,24 @@ def read_ingredients_from_image(image_bytes):
     return text
 
 
+def is_safe_context(text, term):
+    term = re.escape(normalize_text(term))
+    text = normalize_text(text)
+
+    safe_patterns = [
+        rf"\bno\b[\w\s,;:/()-]{{0,90}}\b{term}\b",
+        rf"\bwithout\b[\w\s,;:/()-]{{0,90}}\b{term}\b",
+        rf"\bfree\s+(?:from|of)\b[\w\s,;:/()-]{{0,90}}\b{term}\b",
+        rf"\b{term}\s+free\b",
+        rf"\b(?:does\s+not|do\s+not|doesn't|don't)\s+contain\b[\w\s,;:/()-]{{0,90}}\b{term}\b",
+        rf"\bcontains?\s+no\b[\w\s,;:/()-]{{0,90}}\b{term}\b",
+        rf"\bsans\b[\w\s,;:/()-]{{0,90}}\b{term}\b",
+        rf"\bne\s+contient\s+pas\b[\w\s,;:/()-]{{0,90}}\b{term}\b",
+    ]
+
+    return any(re.search(pattern, text) for pattern in safe_patterns)
+
+
 def analyze_gluten(text):
     normalized = normalize_text(text)
 
@@ -409,16 +427,8 @@ def analyze_gluten(text):
         normalized_term = normalize_text(term)
 
         if normalized_term in normalized:
-
-            patterns = [
-                f"no {normalized_term}",
-                f"without {normalized_term}",
-                f"free of {normalized_term}",
-                f"gluten free",
-                f"sans {normalized_term}",
-            ]
-
-            if any(p in normalized for p in patterns):
+            if is_safe_context(normalized, normalized_term):
+                safe_detected = True
                 continue
 
             found.append(term)
