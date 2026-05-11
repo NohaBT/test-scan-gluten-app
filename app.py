@@ -3,7 +3,7 @@ import re
 from collections import Counter
 
 import cv2
-import easyocr
+import pytesseract
 import numpy as np
 import requests
 import streamlit as st
@@ -12,14 +12,14 @@ from pyzbar.pyzbar import decode
 
 
 st.set_page_config(page_title="Gluten Scanner", page_icon="🔎")
-
+st.warning("MVP note: OCR works best with clear English ingredient labels. Always verify the product label.")
 
 TEXT = {
     "English": {
         "language": "Choose language",
         "subtitle": "Scan a barcode or ingredients list",
         "intro": "This tool uses rules + a small machine learning model to estimate gluten risk from a product photo.",
-        "info": "Step 1: Try scanning the barcode first. If the product is not found, scan the ingredients list.",
+        "info": "Try scanning the barcode first. If the product is not found, scan the ingredients list.",
         "scan_type": "Choose scan type",
         "barcode": "Scan Barcode",
         "ingredients": "Scan Ingredients",
@@ -56,7 +56,7 @@ TEXT = {
         "language": "Choisir la langue",
         "subtitle": "Scannez un code-barres ou une liste d'ingrédients",
         "intro": "Cet outil utilise des règles + un petit modèle de machine learning pour estimer le risque de gluten.",
-        "info": "Étape 1 : essayez d'abord le code-barres. Si le produit n'est pas trouvé, scannez les ingrédients.",
+        "info": "Essayez d'abord le code-barres. Si le produit n'est pas trouvé, scannez les ingrédients.",
         "scan_type": "Choisir le type de scan",
         "barcode": "Scanner le code-barres",
         "ingredients": "Scanner les ingrédients",
@@ -93,7 +93,7 @@ TEXT = {
         "language": "اختر اللغة",
         "subtitle": "صوّر الباركود أو لائحة المكونات",
         "intro": "هذا التطبيق يستعمل القواعد + نموذج تعلم آلي صغير لتقدير خطر الغلوتين.",
-        "info": "الخطوة 1: جرّب الباركود أولا. إذا لم نجد المنتج، صوّر لائحة المكونات.",
+        "info": "  جرّب الباركود أولا. إذا لم نجد المنتج، صوّر لائحة المكونات.",
         "scan_type": "اختر نوع الفحص",
         "barcode": "فحص الباركود",
         "ingredients": "فحص المكونات",
@@ -158,7 +158,6 @@ DANGEROUS_GLUTEN = [
     "brewer yeast",
     "brewer's yeast",
     "blé",
-    "ble",
     "blé tendre",
     "orge",
     "seigle",
@@ -205,10 +204,6 @@ TRAINING_EXAMPLES = [
     ("milk cocoa sugar hazelnut soy lecithin", 0),
 ]
 
-
-@st.cache_resource
-def load_reader():
-    return easyocr.Reader(["fr", "en"], gpu=False)
 
 
 def normalize_text(text):
@@ -267,8 +262,6 @@ def predict_gluten_probability(text):
     free_score = math.exp(scores[0] - max_score)
     return gluten_score / (gluten_score + free_score)
 
-
-reader = load_reader()
 
 if "scan_history" not in st.session_state:
     st.session_state.scan_history = []
@@ -356,25 +349,52 @@ def get_product_from_openfoodfacts(barcode):
     }
 
 
+
+
 def read_ingredients_from_image(image):
     img = np.array(image.convert("RGB"))
     gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+
     gray = cv2.resize(gray, None, fx=2, fy=2)
-    result = reader.readtext(gray, detail=0)
-    return " ".join(result)
+    gray = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)[1]
+
+    text = pytesseract.image_to_string(gray, lang="eng+fra")
+    return text
 
 
 def analyze_gluten(text):
     normalized = normalize_text(text)
-    safe_detected = any(phrase in normalized for phrase in SAFE_PHRASES)
+
+    safe_detected = any(
+        phrase in normalized
+        for phrase in SAFE_PHRASES
+    )
 
     found = []
+
     for term in DANGEROUS_GLUTEN:
         normalized_term = normalize_text(term)
-        if normalized_term in normalized and not is_safe_context(normalized, normalized_term):
+
+        if normalized_term in normalized:
+
+            patterns = [
+                f"no {normalized_term}",
+                f"without {normalized_term}",
+                f"free of {normalized_term}",
+                f"gluten free",
+                f"sans {normalized_term}",
+            ]
+
+            if any(p in normalized for p in patterns):
+                continue
+
             found.append(term)
 
     ml_probability = predict_gluten_probability(text)
+
+    if safe_detected:
+        ml_probability *= 0.25
+
     return sorted(set(found)), safe_detected, ml_probability
 
 
@@ -429,7 +449,8 @@ if file:
             st.stop()
 
     elif scan_mode == t["ingredients"]:
-        extracted_text = read_ingredients_from_image(image)
+            st.warning("Ingredients OCR temporarily disabled in MVP version.")
+            st.stop()
 
     with st.expander(t["show_text"]):
         st.write(extracted_text or t["no_text"])
