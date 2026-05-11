@@ -463,12 +463,22 @@ if file:
     risk = risk_level(found_gluten, ml_probability, safe_detected)
 
     rule_detected = bool(found_gluten and not safe_detected)
-    ml_detected = ml_probability >= 0.65 and not safe_detected
+    
+    ml_detected = (
+        ml_probability >= 0.90
+        and not safe_detected
+        and not found_gluten
+    )
 
     if rule_detected:
         result_label = t["contains"]
+    
+    elif safe_detected:
+        result_label = t["free"]
+    
     elif ml_detected:
         result_label = t["possible"]
+    
     else:
         result_label = t["free"]
 
